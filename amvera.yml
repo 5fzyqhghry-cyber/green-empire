@@ -6,7 +6,6 @@ meta:
 
 build:
   dockerfile: Dockerfile
-  context: .
 
 run:
   containerPort: 80
