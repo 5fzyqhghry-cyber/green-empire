@@ -1,45 +1,8 @@
 import Phaser from 'phaser';
+import { FarmScene } from './game/scenes/FarmScene';
+import { UIScene } from './game/scenes/UIScene';
 
-class TestScene extends Phaser.Scene {
-  constructor() {
-    super({ key: 'Test' });
-  }
-
-  create() {
-    const { width, height } = this.scale;
-    this.add.rectangle(width / 2, height / 2, 200, 200, 0x4a7c3a);
-
-    this.add.text(width / 2, 100, '🌱 Зелёная Империя', {
-      fontSize: '32px',
-      color: '#e8c547',
-    }).setOrigin(0.5);
-
-    this.add.text(width / 2, height - 100, 'Тапни по экрану', {
-      fontSize: '20px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    this.input.on('pointerdown', () => {
-      this.cameras.main.flash(200, 74, 124, 58);
-    });
-  }
-}
-
-const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
-  parent: 'game',
-  backgroundColor: '#1a2a1a',
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 720,
-    height: 1280,
-  },
-  scene: [TestScene],
-};
-
-new Phaser.Game(config);
-
+// Инициализация Telegram WebApp (если открыто в Telegram)
 const tg = (window as any).Telegram?.WebApp;
 if (tg) {
   tg.ready();
@@ -48,3 +11,23 @@ if (tg) {
 } else {
   console.log('⚠️ Открыто вне Telegram');
 }
+
+const config: Phaser.Types.Core.GameConfig = {
+  type: Phaser.AUTO,
+  parent: 'game',
+  backgroundColor: '#1a2a1a',
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: '100%',
+    height: '100%',
+  },
+  render: {
+    pixelArt: true,
+    antialias: false,
+    roundPixels: true,
+  },
+  scene: [FarmScene, UIScene],
+};
+
+new Phaser.Game(config);
