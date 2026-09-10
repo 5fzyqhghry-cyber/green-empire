@@ -3,12 +3,15 @@ import Phaser from 'phaser';
 /**
  * UI-слой поверх FarmScene.
  * Рисует HUD сверху и хотбар снизу.
- * Пока без настоящей логики — только визуал и события.
+ * Использует fixed-to-camera объекты (setScrollFactor(0)).
  */
 export class UIScene extends Phaser.Scene {
   private hudText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
-  private hotbarButtons: Phaser.GameObjects.Container[] = [];
+  private hotbarContainer!: Phaser.GameObjects.Container;
+  private hudBg!: Phaser.GameObjects.Rectangle;
+  private hudLine!: Phaser.GameObjects.Rectangle;
+  private titleText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'UI' });
@@ -16,45 +19,39 @@ export class UIScene extends Phaser.Scene {
 
   create(): void {
     this.createHUD();
-    this.createHotbar();
     this.createStatusText();
+    this.createHotbar();
 
-    // Подписки на события FarmScene
     this.game.events.on('tile-tapped', this.onTileTapped, this);
+    this.scale.on('resize', this.layout, this);
 
-    // Обновление при ресайзе
-    this.scale.on('resize', this.onResize, this);
-
-    // Отписки при выключении сцены
     this.events.once('shutdown', () => {
       this.game.events.off('tile-tapped', this.onTileTapped, this);
-      this.scale.off('resize', this.onResize, this);
+      this.scale.off('resize', this.layout, this);
     });
+
+    // Первичная раскладка — на случай, если размеры пришли с задержкой
+    this.time.delayedCall(50, () => this.layout());
   }
 
-  /**
-   * Верхняя панель: заголовок, день, деньги, уровень.
-   */
   private createHUD(): void {
-    const { width } = this.scale;
-
-    // Тёмная плашка сверху
-    this.add
-      .rectangle(0, 0, width, 90, 0x0f1a0f, 0.95)
+    // Плашка HUD
+    this.hudBg = this.add
+      .rectangle(0, 0, 100, 90, 0x0f1a0f, 0.95)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(100);
 
-    // Тонкая золотая линия под HUD
-    this.add
-      .rectangle(0, 90, width, 2, 0xe8c547, 0.8)
+    // Золотая линия под HUD
+    this.hudLine = this.add
+      .rectangle(0, 90, 100, 2, 0xe8c547, 0.9)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(101);
 
     // Заголовок
-    this.add
-      .text(width / 2, 24, '🌱 Зелёная Империя', {
+    this.titleText = this.add
+      .text(0, 24, '🌱 Зелёная Империя', {
         fontFamily: 'monospace',
         fontSize: '22px',
         color: '#e8c547',
@@ -64,9 +61,9 @@ export class UIScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(102);
 
-    // Статус-строка (день, деньги, уровень)
+    // Статус-строка
     this.hudText = this.add
-      .text(width / 2, 62, 'День 1   💰 1000   ⭐ Ур. 1', {
+      .text(0, 62, 'День 1   💰 1000   ⭐ Ур. 1', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#a0d97c',
@@ -76,14 +73,28 @@ export class UIScene extends Phaser.Scene {
       .setDepth(102);
   }
 
-  /**
-   * Нижняя панель с кнопками действий (хотбар).
-   * 7 кнопок — как в требованиях.
-   */
-  private createHotbar(): void {
-    const { width, height } = this.scale;
+  private createStatusText(): void {
+    this.statusText = this.add
+      .text(0, 0, '', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#a0d97c',
+        backgroundColor: '#0f1a0fcc',
+        padding: { x: 12, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(102)
+      .setAlpha(0);
+  }
 
-    const buttonData = [
+  private createHotbar(): void {
+    this.hotbarContainer = this.add
+      .container(0, 0)
+      .setScrollFactor(0)
+      .setDepth(102);
+
+    const buttons = [
       { key: 'water',   emoji: '💧', label: 'Полив' },
       { key: 'fert',    emoji: '🌿', label: 'Удобр.' },
       { key: 'trim',    emoji: '✂️', label: 'Трим' },
@@ -93,42 +104,12 @@ export class UIScene extends Phaser.Scene {
       { key: 'quests',  emoji: '📋', label: 'Задания' },
     ];
 
-    const barHeight = 100;
-    const barY = height - barHeight;
-
-    // Фон хотбара
-    this.add
-      .rectangle(0, barY, width, barHeight, 0x0f1a0f, 0.95)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(100);
-
-    // Золотая линия над хотбаром
-    this.add
-      .rectangle(0, barY - 2, width, 2, 0xe8c547, 0.8)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    const btnSize = Math.min(64, Math.floor((width - 32) / 7) - 8);
-    const gap = 8;
-    const totalWidth = buttonData.length * btnSize + (buttonData.length - 1) * gap;
-    const startX = (width - totalWidth) / 2;
-    const y = barY + barHeight / 2;
-
-    buttonData.forEach((btn, i) => {
-      const x = startX + i * (btnSize + gap) + btnSize / 2;
-      const container = this.add.container(x, y).setScrollFactor(0).setDepth(102);
-
-      const bg = this.add.rectangle(0, 0, btnSize, btnSize, 0x3a2a1a);
-      bg.setStrokeStyle(2, 0x8b6b3a);
-
-      const emoji = this.add
-        .text(0, -8, btn.emoji, { fontSize: `${Math.floor(btnSize * 0.4)}px` })
-        .setOrigin(0.5);
-
+    for (const btn of buttons) {
+      const container = this.add.container(0, 0);
+      const bg = this.add.rectangle(0, 0, 60, 60, 0x3a2a1a).setStrokeStyle(2, 0x8b6b3a);
+      const emoji = this.add.text(0, -8, btn.emoji, { fontSize: '24px' }).setOrigin(0.5);
       const label = this.add
-        .text(0, btnSize * 0.28, btn.label, {
+        .text(0, 18, btn.label, {
           fontFamily: 'monospace',
           fontSize: '10px',
           color: '#e8c547',
@@ -136,42 +117,71 @@ export class UIScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       container.add([bg, emoji, label]);
-      container.setSize(btnSize, btnSize);
-
-      // Интерактивность через прямоугольник
       bg.setInteractive({ useHandCursor: true });
-      bg.on('pointerdown', () => {
-        this.onHotbarPress(btn.key, btn.label);
-      });
-
-      this.hotbarButtons.push(container);
-    });
+      bg.on('pointerdown', () => this.onHotbarPress(btn.key, btn.label));
+      container.setData('btn', btn);
+      this.hotbarContainer.add(container);
+    }
   }
 
-  /**
-   * Строка статуса — что происходит (для отладки и обратной связи).
-   */
-  private createStatusText(): void {
-    const { width, height } = this.scale;
-    const hotbarHeight = 100;
+  /** Пересчитывает позиции всех UI-элементов под текущий размер экрана. */
+  private layout(): void {
+    const w = this.scale.gameSize.width;
+    const h = this.scale.gameSize.height;
 
-    this.statusText = this.add
-      .text(width / 2, height - hotbarHeight - 30, '', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#a0d97c',
-        backgroundColor: '#0f1a0fcc',
-        padding: { x: 12, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(102);
+    // HUD сверху
+    this.hudBg.setSize(w, 90);
+    this.hudLine.setSize(w, 2);
+    this.titleText.setPosition(w / 2, 24);
+    this.hudText.setPosition(w / 2, 62);
+
+    // Хотбар снизу
+    const barHeight = 100;
+    const barY = h - barHeight;
+
+    // Фон хотбара
+    if (!this.hotbarContainer.getData('barBg')) {
+      const barBg = this.add
+        .rectangle(0, 0, w, barHeight, 0x0f1a0f, 0.95)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(100);
+      const barLine = this.add
+        .rectangle(0, barY - 2, w, 2, 0xe8c547, 0.9)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(101);
+      this.hotbarContainer.setData('barBg', barBg);
+      this.hotbarContainer.setData('barLine', barLine);
+    }
+    const barBg = this.hotbarContainer.getData('barBg') as Phaser.GameObjects.Rectangle;
+    const barLine = this.hotbarContainer.getData('barLine') as Phaser.GameObjects.Rectangle;
+    barBg.setPosition(0, barY).setSize(w, barHeight);
+    barLine.setPosition(0, barY - 2).setSize(w, 2);
+
+    // Позиционируем кнопки
+    const children = this.hotbarContainer.list.filter(
+      (c) => c instanceof Phaser.GameObjects.Container && c.getData('btn'),
+    ) as Phaser.GameObjects.Container[];
+
+    const btnSize = Math.min(64, Math.floor((w - 32) / 7) - 8);
+    const gap = 8;
+    const totalW = children.length * btnSize + (children.length - 1) * gap;
+    const startX = (w - totalW) / 2;
+    const btnY = barY + barHeight / 2;
+
+    children.forEach((c, i) => {
+      c.setPosition(startX + i * (btnSize + gap) + btnSize / 2, btnY);
+      const bg = c.list[0] as Phaser.GameObjects.Rectangle;
+      bg.setSize(btnSize, btnSize);
+    });
+
+    // Статус-текст — над хотбаром
+    this.statusText.setPosition(w / 2, barY - 30);
   }
 
   private showStatus(message: string): void {
     this.statusText.setText(message);
-
-    // Плавное исчезновение через 2 секунды
     this.tweens.killTweensOf(this.statusText);
     this.statusText.setAlpha(1);
     this.tweens.add({
@@ -188,18 +198,8 @@ export class UIScene extends Phaser.Scene {
 
   private onHotbarPress(key: string, label: string): void {
     this.showStatus(`Выбрано: ${label}`);
-
     const tg = (window as any).Telegram?.WebApp;
     tg?.HapticFeedback?.impactOccurred('medium');
-
-    // Уведомляем FarmScene
     this.game.events.emit('hotbar-action', key);
-  }
-
-  private onResize(): void {
-    // При ресайзе пересоздаём хотбар на новых размерах
-    for (const btn of this.hotbarButtons) btn.destroy();
-    this.hotbarButtons = [];
-    this.createHotbar();
   }
 }
